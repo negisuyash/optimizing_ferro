@@ -312,8 +312,7 @@ class BagPacker:
 
                 for thread in threads:
                     thread.start()
-                for thread in threads:
-                    thread.join()
+                
 
                 print('here')
                 return pd.DataFrame(list(zip(list_of_breaked_addr, list_of_x_coor, list_of_y_coor, list_of_pkg_ID, list_of_shipment_ID, list_of_tag_ID ,list_of_located)),
