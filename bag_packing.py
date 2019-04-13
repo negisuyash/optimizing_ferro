@@ -685,7 +685,7 @@ if __name__ == '__main__':
             {u'address': u'256, Basement, Near Gupta Hospital, Jacobpura Gurgaon - - Gurgaon',
              u'shipment_ID': u'528440038', u'tag_ID': u'0', u'ID': u'da7b845244d74091aa5e307a066a6276'}]
     #os.environ["DATASETS_FOLDER"] = os.environ['PWD'] + "/datasets/"
-    os.environ["DATASETS_FOLDER"] = os.getcwd() + "\\..\\..\\datasets\\"
+    os.environ["DATASETS_FOLDER"] = os.getcwd() + "/../datasets/"
     start_time = timeit.default_timer()
     info = dict(mobile_hubs=[{'name':'1'},{'name':'2'}], max_cap=10, pkgs_per_bag=15, start_point=[28.4861289, 77.0620486], parking_list=None)
 
