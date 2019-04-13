@@ -254,8 +254,8 @@ class BagPacker:
             threads=[threading.Thread(target=geocode_multithread, args=(i,j,k,l,)) for i,j,k,l in zip(df['breaked_addr'], df['pkg_ID'],df['shipment_ID'],df['tag_ID'])]
             for thread in threads:
                 thread.start()
-            for thread in threads:
-                thread.join()
+            #for thread in threads:
+                #thread.join()
             df = pd.DataFrame(list(zip(list_of_address, list_of_lat, list_of_lng, list_of_located, list_of_pkg_ID,list_of_shipment_ID,list_of_tag_ID)),
                               columns=['breaked_addr', 'x', 'y', 'located', 'pkg_ID','shipment_ID','tag_ID'])
             if save_data:
