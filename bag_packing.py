@@ -262,7 +262,11 @@ class BagPacker:
                 list_of_pkg_ID = []
                 list_of_tag_ID = []
                 list_of_shipment_ID = []
-
+                list_of_breaked_addr_set=[]
+                for breaked_addr in knowledge_df['breaked_addr']:
+                    list_of_breaked_addr_set.append(set(str(breaked_addr).split(' ')))
+                #print(list_of_breaked_addr_set)
+                knowledge_df['breaked_addr_set']=list_of_breaked_addr_set
                 #address = pd.read_csv(os.getenv('DATASETS_FOLDER')+'pairing.csv')
 
                 #for l, m, n, o in zip(address['breaked_addr'], address['pkg_ID'], address['shipment_ID'], address['tag_ID']):
@@ -270,12 +274,12 @@ class BagPacker:
                     flag = False
                     set_of_input = set(str(l).split(" "))
                     length = len(set(str(l).split(" ")))
-                    for i, j, k in zip(knowledge_df['breaked_addr'], knowledge_df['x_coor'], knowledge_df['y_coor']):
+                    for i, j, k in zip(knowledge_df['breaked_addr_set'], knowledge_df['x_coor'], knowledge_df['y_coor']):
 
                         if flag:
                             break
                         else:
-                            if len(list(set(str(i).split(" ")).intersection(set_of_input))) / length >= 0.85:
+                            if len(list(i.intersection(set_of_input))) / length >= 0.85:
                                 flag = True
                                 list_of_breaked_addr.append(l)
                                 list_of_x_coor.append(j)
