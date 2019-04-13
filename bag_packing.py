@@ -3,7 +3,6 @@ import googlemaps
 import pandas as pd
 import timeit
 import threading
-import json
 
 
 logger = logging.getLogger(__name__)
@@ -24,24 +23,23 @@ class BagPacker:
             logger.error("Issue with " + str(inspect.stack()[0][3]), exc_info=True)
 
     def prepare_bags(self, pkgs, params):
-        df = pd.read_csv(os.getenv('DATASETS_FOLDER') + 'pairing.csv',
-                         usecols=['addr', 'pkg_ID', 'shipment_ID', 'tag_ID']).dropna()
+        #df = pd.read_csv(os.getenv('DATASETS_FOLDER') + 'pairing.csv',
+                         #usecols=['addr', 'pkg_ID', 'shipment_ID', 'tag_ID']).dropna()
+        df=self.df
         df['located'] = [0 for i in range(len(df))]
         df['breaked_addr'] = BagPacker.clean_address(df['addr'])
         del df['addr']
         #df.to_csv(os.getenv('DATASETS_FOLDER') + 'pairing.csv')
-        with open(os.getenv('DATASETS_FOLDER')+'knowledge_base_json.txt') as json_file:
-            knowledge_df=json.load(json_file)
+        knowledge_df=pd.read_csv(os.getenv('DATASETS_FOLDER')+'train_data_prep.csv')
         df_temp = BagPacker.search_knowledge(knowledge_df=knowledge_df,address=df)
         for i in df_temp['breaked_addr']:
             df = df[df['breaked_addr'] != i]
         df_temp = df_temp.append(df)
         df = df_temp
         df1 = df[df['located'] == 0]
+        df1, geocode_not_found = BagPacker.get_geocode(df1)
+        df = df.append(df1)
         if len(df1)>0:
-            df1, geocode_not_found = BagPacker.get_geocode(df1)
-            df = df.append(df1)
-        #if len(df1)>0:
             BagPacker.update_knowledge_base(knowledge_df=knowledge_df,df=df1)
         df = df[df['located'] == 1]
         df['angles'] = BagPacker.find_angle_on_map(df, BagPacker.find_center(df))
@@ -62,73 +60,59 @@ class BagPacker:
             df['located'] = [0 for i in range(len(df))]
             df['breaked_addr'] = BagPacker.clean_address(df['addr'])
             knowledge_df=pd.read_csv(os.getenv('DATASETS_FOLDER')+'train_data_prep.csv')
-            #print(open(os.getenv('DATASETS_FOLDER') + 'knowledge_base_json.txt').read())
-            #print(knowledge_df[0]['breaked_addr'])
-            #with open(os.getenv('DATASETS_FOLDER') + 'knowledge_base_json.txt').read() as json_file:
-            #    knowledge_df = json.loads(json_file)
 
             #df.to_csv(os.getenv('DATASETS_FOLDER')+'pairing.csv')
-            s1=timeit.default_timer()
-            print('in search')
+            s=timeit.default_timer()
             df_temp = BagPacker.search_knowledge(knowledge_df=knowledge_df,address=df)
-            print('out of search:'+str(timeit.default_timer()-s1))
+            print('search fun:'+str(timeit.default_timer()-s))
 
             for i in df_temp['breaked_addr']:
                 df = df[df['breaked_addr'] != i]
-
-            df = df_temp.append(df)
+            df = df_temp.append(df,sort=False)
 
             df1 = df[df['located'] == 0]
             if len(df1) > 0:
-             #   s1=timeit.default_timer()
-             #   print('in geocode')
+                s = timeit.default_timer()
                 df1, geocode_not_found = BagPacker.get_geocode(df1)
-
-              #  print('out of geocode:'+str(timeit.default_timer()-s1))
-
-                df = df.append(df1,sort=False)
-              #  s1=timeit.default_timer()
-              #  print('in knwoledgebase')
+                print('geocode:'+str(timeit.default_timer()-s))
+                df = df.append(df1)
+                s = timeit.default_timer()
                 BagPacker.update_knowledge_base(knowledge_df=knowledge_df,df=df1)
-              #  print('out of knwldge base'+str(timeit.default_timer()-s1))
+                print('update'+str(timeit.default_timer()-s))
             else:
                 geocode_not_found=[]
             df = df[df['located'] == 1]
-            #print('in angle ')
-            #s1=timeit.default_timer()
-
+            s = timeit.default_timer()
             df['angles'] = BagPacker.find_angle_on_map(df,BagPacker.find_center(df))
-            #print('out of angle:'+str(timeit.default_timer()-s1))
-            #print('in divide load')
-            #s1=timeit.default_timer()
+            print('angle'+str(timeit.default_timer()-s))
+            s = timeit.default_timer()
             quad, unmapped,remaining = BagPacker.divide_load(df, len(params['mobile_hubs']), params['max_cap'])
-            #print('out of divide load:'+str(timeit.default_timer()-s1))
-            #print('in distri load')
-            #s1=timeit.default_timer()
+            print('divide_load:'+str(timeit.default_timer()-s))
+            s = timeit.default_timer()
             quad = BagPacker.distribute_load(quad, len(params['mobile_hubs']), params['max_cap']/2, params['max_cap'])
-            #print('out of distri load:'+str(timeit.default_timer()-s1))
+            print('distri:'+str(timeit.default_timer()-s))
             final_result = {}
             if len(remaining) > 0:
                 # handling remaining address which are more than eloaders max_cap
                 #print(remaining)
                 #final_result['remaining'] = dict(mean_pos=dict(loc=[], address=''))
+                s = timeit.default_timer()
                 final_result['remaining'] = BagPacker.load_vehicle(remaining, pair_n=params['pkgs_per_bag'])
+                print('load:'+str(timeit.default_timer()-s))
                 #final_result['remaining']['mean_pos']['address'] = BagPacker.get_geocode(pd.DataFrame([
-                 #   [final_result['remaining']['mean_pos']['loc']]], columns=['loc']), get_address=True)
+                    #[final_result['remaining']['mean_pos']['loc']]], columns=['loc']), get_address=True)
 
                 #final_result['remaining']['work_pair'] = remaining.values.tolist()
 
             for i in range(len(params['mobile_hubs'])):
                 if len(quad['quad_%s' % (i + 1)]) > 0:
-                  #  print('in load vehicle')
-                   # s1=timeit.default_timer()
+                    s = timeit.default_timer()
                     result = BagPacker.load_vehicle(quad['quad_%s' % (i + 1)], pair_n=params['pkgs_per_bag'])
-                  #  print('out of load vehicle:'+str(timeit.default_timer()-s1))
+                    print('load'+str(timeit.default_timer()-s))
                     parking_spot = result['mean_pos']['loc']
-                   # print('in geocode again')
-                   # s1=timeit.default_timer()
-                   # result['mean_pos']['address']=BagPacker.get_geocode(pd.DataFrame([[result['mean_pos']['loc']]],columns=['loc']),get_address=True)
-                   # print('out of geocode again:'+str(timeit.default_timer()-s1))
+
+                    #result['mean_pos']['address']=BagPacker.get_geocode(pd.DataFrame([[result['mean_pos']['loc']]],columns=['loc']),get_address=True)
+
                     if params['start_point']:
                         if params['parking_list']:
                             dist = []
@@ -157,11 +141,8 @@ class BagPacker:
                             for j in range(len(k)):
                                 load_pattern.append(k[j])
 
-                  #      print('in load pattern')
-                  #      s1=timeit.default_timer()
                         result["ordering_pattern"] = BagPacker.determine_loading_pattern(load_pattern,
                                                                                          params['load_pattern'])
-                  #      print('out of load pattern:'+str(timeit.default_timer()-s1))
                     final_result['%s'%params['mobile_hubs'][i]['name']] = result
 
                     '''for item in final_result:
@@ -254,8 +235,8 @@ class BagPacker:
             threads=[threading.Thread(target=geocode_multithread, args=(i,j,k,l,)) for i,j,k,l in zip(df['breaked_addr'], df['pkg_ID'],df['shipment_ID'],df['tag_ID'])]
             for thread in threads:
                 thread.start()
-            #for thread in threads:
-                #thread.join()
+            for thread in threads:
+                thread.join()
             df = pd.DataFrame(list(zip(list_of_address, list_of_lat, list_of_lng, list_of_located, list_of_pkg_ID,list_of_shipment_ID,list_of_tag_ID)),
                               columns=['breaked_addr', 'x', 'y', 'located', 'pkg_ID','shipment_ID','tag_ID'])
             if save_data:
@@ -284,20 +265,17 @@ class BagPacker:
 
                 #address = pd.read_csv(os.getenv('DATASETS_FOLDER')+'pairing.csv')
 
-
                 #for l, m, n, o in zip(address['breaked_addr'], address['pkg_ID'], address['shipment_ID'], address['tag_ID']):
                 def search_brain(l,m,n,o):
-
                     flag = False
-                    set_of_input=list(set(str(l).split(" ")))
-                    length=len(set_of_input)
-
+                    set_of_input = set(str(l).split(" "))
+                    length = len(set(str(l).split(" ")))
                     for i, j, k in zip(knowledge_df['breaked_addr'], knowledge_df['x_coor'], knowledge_df['y_coor']):
-                    #for i in knowledge_df:
+
                         if flag:
                             break
                         else:
-                            if len(list(set(str(knowledge_df['breaked_addr']).split(" ")).intersection(set_of_input))) / length >= 0.85:
+                            if len(list(set(str(i).split(" ")).intersection(set_of_input))) / length >= 0.85:
                                 flag = True
                                 list_of_breaked_addr.append(l)
                                 list_of_x_coor.append(j)
@@ -307,14 +285,11 @@ class BagPacker:
                                 list_of_tag_ID.append(o)
                                 list_of_shipment_ID.append(n)
 
-
                 threads=[threading.Thread(target=search_brain,args=(l,m,n,o,)) for l,m,n,o in zip(address['breaked_addr'],address['pkg_ID'],address['shipment_ID'],address['tag_ID'])]
-
                 for thread in threads:
                     thread.start()
-                
-
-                print('here')
+                for thread in threads:
+                    thread.join()
                 return pd.DataFrame(list(zip(list_of_breaked_addr, list_of_x_coor, list_of_y_coor, list_of_pkg_ID, list_of_shipment_ID, list_of_tag_ID ,list_of_located)),
                                     columns=['breaked_addr', 'x', 'y','pkg_ID', 'shipment_ID', 'tag_ID' ,'located'])
         except Exception as e:
@@ -477,14 +452,11 @@ class BagPacker:
     @staticmethod
     def load_vehicle(df, pair_n, calc_park_spot=False):
         try:
-
             df1 = pd.DataFrame(df, columns=['breaked_addr', 'x', 'y', 'angles', 'pkg_ID','shipment_ID','tag_ID'])
             work_pair = []
 
 
             # STRING MATCHING
-
-
 
             sr_done = []
             list_of_negation = []
@@ -526,8 +498,6 @@ class BagPacker:
                         sr_done.append(match_n[index][2])
                         list_of_negation.append(match_n[index][1])
 
-
-
             for i, j in zip(list_of_negation, sr_done):
                 df1 = df1[df1['sr'] != j]
 
@@ -535,7 +505,6 @@ class BagPacker:
 
             max_wait_time = []
             i = 0
-            #s1 = timeit.default_timer()
             while i < len(df):
                 time_list = []
                 if i + pair_n <= len(df) - 1:
@@ -556,9 +525,6 @@ class BagPacker:
                 if calc_park_spot:
                     max_wait_time.append(BagPacker.get_short_path(time_list)[1])
                 i += pair_n
-
-            #print('total time INSIDE LOAD_VEHICLE:' + str(timeit.default_timer() - s1))
-
 
             return dict(mean_pos={'loc':mean_pos,'address':''}, work_pair=work_pair,
                         max_rider_return_time=(max(max_wait_time) * 2 if max_wait_time else 0))
@@ -685,10 +651,10 @@ if __name__ == '__main__':
              u'shipment_ID': u'528440038', u'tag_ID': u'0', u'ID': u'da7b845244d74091aa5e307a066a6276'}]
     #os.environ["DATASETS_FOLDER"] = os.environ['PWD'] + "/datasets/"
     os.environ["DATASETS_FOLDER"] = os.getcwd() + "/../datasets/"
-    start_time = timeit.default_timer()
+
     info = dict(mobile_hubs=[{'name':'1'},{'name':'2'}], max_cap=10, pkgs_per_bag=15, start_point=[28.4861289, 77.0620486], parking_list=None)
 
-
+    start_time = timeit.default_timer()
     print(BagPacker(pkgs).pack_bags(info))
     elapsed = timeit.default_timer() - start_time
     print('ELAPSED TIME FOR ENTIRE CODE:'+str(elapsed)+'s')
